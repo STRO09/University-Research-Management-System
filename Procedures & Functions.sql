@@ -1,8 +1,24 @@
+
+
+
+
+
+
+
+------------------ USER ---------------------------------
+
+
+
 CREATE OR REPLACE PROCEDURE CreateUser (in_name IN VARCHAR2, in_email IN VARCHAR2, in_role IN VARCHAR2, in_password  IN VARCHAR2) AS
     v_user_id NUMBER;
     v_salt    RAW(32);
     v_hash    RAW(64);
-BEGIN
+BEGIN   
+    IF EXISTS (SELECT 1 FROM Users1 where email=in_email) THEN
+        DBMS_OUTPUT.PUT_LINE('No user with the given id found');
+        RETURN; 
+    END IF;
+
     SELECT user_id_seq.NEXTVAL INTO v_user_id FROM dual;
 
     v_salt := DBMS_CRYPTO.RANDOMBYTES(32);
@@ -27,19 +43,7 @@ BEGIN
             RETURN; 
     END;
 
-    IF new_name IS NOT NULL THEN 
-        new_name := v_name;
-    END IF;
-    
-    IF new_email IS NOT NULL THEN 
-        new_email := v_mail;
-    END IF;
-    
-    IF new_role IS NOT NULL THEN 
-        new_role := v_role;
-    END IF;
-
-    UPDATE Users1 SET full_name = new_name, email = new_email, user_role = new_role WHERE user_id = in_id;
+    UPDATE Users1 SET full_name = NVL(new_name,v_name), email = NVL(new_email, v_mail), user_role = NVL(new_role,v_role) WHERE user_id = in_id;
 END;
 /
 
@@ -49,343 +53,545 @@ CREATE OR REPLACE PROCEDURE DeleteUser (in_id IN NUMBER) AS
 BEGIN
     IF EXISTS (SELECT 1 FROM Users1 where user_id = in_id) THEN 
         DELETE FROM Users1 where user_id = in_id;
-    END IF;  
+        DBMS_OUTPUT.PUT_LINE('User Deleted Successfully');
+        RETURN;
+    END IF;
+    DBMS_OUTPUT.PUT_LINE('No user with the given id found');  
 END;
 /
 
-CREATE OR REPLACE PROCEDURE ShowUsers () AS 
+CREATE OR REPLACE PROCEDURE ShowUsers AS 
 
 BEGIN 
     SELECT * FROM Users1;
 END;
 /
 
-CREATE OR REPLACE PROCEDURE FindUser (in_id IN NUMBER) AS 
+CREATE OR REPLACE PROCEDURE GetUser (in_id IN NUMBER) AS 
 
 BEGIN 
-    SELECT 1 FROM Users1 where user_id = in_id;
+    IF EXISTS (SELECT 1 FROM Users1 where user_id = in_id) THEN
+        SELECT 1 FROM Users1 where user_id = in_id;
+        RETURN;
+    END IF;
+    DBMS_OUTPUT.PUT_LINE('No user with the given id found');
 END;
 /
 
--- CREATE
-CREATE OR REPLACE PROCEDURE create_lab (
-    p_labname IN VARCHAR2,
-    p_capacity IN NUMBER,
-    p_availability IN VARCHAR2
-) IS
+
+
+
+
+
+
+
+
+
+------------------ LABS ---------------------------------
+
+
+
+
+
+CREATE OR REPLACE PROCEDURE CreateLab (p_labname IN VARCHAR2, p_capacity IN NUMBER, p_availability IN VARCHAR2) AS
 BEGIN
     INSERT INTO Labs(lab_id, labname, lab_capacity, availability_status)
     VALUES (lab_id_seq.NEXTVAL, p_labname, p_capacity, p_availability);
 END;
 /
 
--- READ
-CREATE OR REPLACE PROCEDURE get_lab (
-    p_lab_id IN NUMBER,
-    p_labname OUT VARCHAR2,
-    p_capacity OUT NUMBER,
-    p_availability OUT VARCHAR2
-) IS
+CREATE OR REPLACE PROCEDURE GetLab (p_lab_id IN NUMBER) IS
 BEGIN
-    SELECT labname, lab_capacity, availability_status
-    INTO p_labname, p_capacity, p_availability
-    FROM Labs
-    WHERE lab_id = p_lab_id;
+    IF EXISTS (SELECT 1 FROM Labs where lab_id = p_lab_id) THEN
+    SELECT 1 FROM labs where lab_id = p_lab_id;
+    RETURN;
+    END IF;
+    DBMS_OUTPUT.PUT_LINE('No Lab with the given id found');
 END;
 /
 
--- UPDATE
-CREATE OR REPLACE PROCEDURE update_lab (
-    p_lab_id IN NUMBER,
-    p_labname IN VARCHAR2,
-    p_capacity IN NUMBER,
-    p_availability IN VARCHAR2
-) IS
+CREATE OR REPLACE PROCEDURE UpdateLab ( p_lab_id IN NUMBER, p_labname IN VARCHAR2, p_capacity IN NUMBER, p_availability IN VARCHAR2) AS
+
+v_labname Labs.labname%TYPE;
+v_avl Labs.availability_status%TYPE;
+v_cap Labs.lab_capacity%TYPE;
 BEGIN
-    UPDATE Labs
-    SET labname = p_labname,
-        lab_capacity = p_capacity,
-        availability_status = p_availability
-    WHERE lab_id = p_lab_id;
+    BEGIN 
+        SELECT labname,availabilty_status, lab_capacity INTO v_labname, v_avl, v_cap FROM Labs WHERE lab_id = p_lab_id;
+        EXCEPTION WHEN NO_DATA_FOUND THEN
+        DBMS_OUTPUT.PUT_LINE('No data found');
+        RETURN;
+    END;
+
+    UPDATE Labs SET labname = NVL(p_labname, v_labname), lab_capacity = NVL(p_capacity, v_cap), availability_status = NVL(p_availability, v_avl) WHERE lab_id = p_lab_id;
 END;
 /
 
--- DELETE
-CREATE OR REPLACE PROCEDURE delete_lab (
-    p_lab_id IN NUMBER
-) IS
+CREATE OR REPLACE PROCEDURE DeleteLab ( p_lab_id IN NUMBER ) IS
 BEGIN
+IF EXISTS (SELECT 1 FROM Labs where lab_id = p_lab_id) THEN
     DELETE FROM Labs WHERE lab_id = p_lab_id;
+    RETURN;
+    END IF;
+    DBMS_OUTPUT.PUT_LINE('No Lab with the given id found');
+    
 END;
 /
 
--- CREATE
-CREATE OR REPLACE PROCEDURE create_project (
-    p_title IN VARCHAR2,
-    p_desc IN CLOB,
-    p_start IN DATE,
-    p_end IN DATE,
-    p_lab_assigned IN NUMBER,
-    p_admin IN NUMBER,
-    p_status IN VARCHAR2
-) IS
+
+
+
+
+
+
+
+
+
+-------------------- PROJECTS ------------------------------
+
+
+CREATE OR REPLACE PROCEDURE CreateProject (
+    in_title IN VARCHAR2,
+    in_desc IN CLOB,
+    in_start IN DATE,
+    in_end IN DATE,
+    in_lab_assigned IN NUMBER,
+    in_admin IN NUMBER,
+    in_status IN VARCHAR2
+) AS
+    v_project_id NUMBER;
 BEGIN
+    IF EXISTS (SELECT 1 FROM Projects WHERE title = in_title) THEN
+        DBMS_OUTPUT.PUT_LINE('Project with same title already exists');
+        RETURN;
+    END IF;
+
+    SELECT project_id_seq.NEXTVAL INTO v_project_id FROM dual;
+
     INSERT INTO Projects(project_id, title, project_desc, start_date, end_date, lab_assigned, project_admin, status)
-    VALUES (project_id_seq.NEXTVAL, p_title, p_desc, NVL(p_start, SYSDATE), p_end, p_lab_assigned, p_admin, p_status);
+    VALUES (v_project_id, in_title, in_desc, NVL(in_start, SYSDATE), in_end, in_lab_assigned, in_admin, in_status);
+
+    DBMS_OUTPUT.PUT_LINE('Project Created Successfully with ID: ' || v_project_id);
 END;
 /
 
--- READ
-CREATE OR REPLACE PROCEDURE get_project (
-    p_project_id IN NUMBER,
-    p_title OUT VARCHAR2,
-    p_desc OUT CLOB,
-    p_start OUT DATE,
-    p_end OUT DATE,
-    p_lab OUT NUMBER,
-    p_admin OUT NUMBER,
-    p_status OUT VARCHAR2
-) IS
+
+
+CREATE OR REPLACE PROCEDURE GetProject (in_id IN NUMBER) AS
 BEGIN
-    SELECT title, project_desc, start_date, end_date, lab_assigned, project_admin, status
-    INTO p_title, p_desc, p_start, p_end, p_lab, p_admin, p_status
-    FROM Projects WHERE project_id = p_project_id;
+    IF EXISTS (SELECT 1 FROM Projects WHERE project_id = in_id) THEN
+        SELECT 1 FROM Projects WHERE project_id = in_id;
+        RETURN;
+    END IF;
+    DBMS_OUTPUT.PUT_LINE('No project with the given id found');
 END;
 /
 
--- UPDATE
-CREATE OR REPLACE PROCEDURE update_project (
-    p_project_id IN NUMBER,
-    p_title IN VARCHAR2,
-    p_desc IN CLOB,
-    p_start IN DATE,
-    p_end IN DATE,
-    p_lab_assigned IN NUMBER,
-    p_admin IN NUMBER,
-    p_status IN VARCHAR2
-) IS
+
+
+CREATE OR REPLACE PROCEDURE UpdateProject (
+    in_id IN NUMBER,
+    new_title IN VARCHAR2,
+    new_desc IN CLOB,
+    new_start IN DATE,
+    new_end IN DATE,
+    new_lab IN NUMBER,
+    new_admin IN NUMBER,
+    new_status IN VARCHAR2
+) AS
+    v_title   Projects.title%TYPE;
+    v_desc    Projects.project_desc%TYPE;
+    v_start   Projects.start_date%TYPE;
+    v_end     Projects.end_date%TYPE;
+    v_lab     Projects.lab_assigned%TYPE;
+    v_admin   Projects.project_admin%TYPE;
+    v_status  Projects.status%TYPE;
 BEGIN
+    BEGIN
+        SELECT title, project_desc, start_date, end_date, lab_assigned, project_admin, status
+        INTO v_title, v_desc, v_start, v_end, v_lab, v_admin, v_status
+        FROM Projects WHERE project_id = in_id;
+    EXCEPTION
+        WHEN NO_DATA_FOUND THEN
+            DBMS_OUTPUT.PUT_LINE('No project with the given id found');
+            RETURN;
+    END;
+
     UPDATE Projects
-    SET title = p_title,
-        project_desc = p_desc,
-        start_date = p_start,
-        end_date = p_end,
-        lab_assigned = p_lab_assigned,
-        project_admin = p_admin,
-        status = p_status
-    WHERE project_id = p_project_id;
+    SET title = NVL(new_title, v_title),
+        project_desc = NVL(new_desc, v_desc),
+        start_date = NVL(new_start, v_start),
+        end_date = NVL(new_end, v_end),
+        lab_assigned = NVL(new_lab, v_lab),
+        project_admin = NVL(new_admin, v_admin),
+        status = NVL(new_status, v_status)
+    WHERE project_id = in_id;
+
+    DBMS_OUTPUT.PUT_LINE('Project Updated Successfully');
 END;
 /
 
--- DELETE
-CREATE OR REPLACE PROCEDURE delete_project (
-    p_project_id IN NUMBER
-) IS
+
+CREATE OR REPLACE PROCEDURE DeleteProject (in_id IN NUMBER) AS
 BEGIN
-    DELETE FROM Projects WHERE project_id = p_project_id;
+    IF EXISTS (SELECT 1 FROM Projects WHERE project_id = in_id) THEN
+        DELETE FROM Projects WHERE project_id = in_id;
+        DBMS_OUTPUT.PUT_LINE('Project Deleted Successfully');
+        RETURN;
+    END IF;
+    DBMS_OUTPUT.PUT_LINE('No project with the given id found');
 END;
 /
 
--- CREATE
-CREATE OR REPLACE PROCEDURE add_project_member (
-    p_project_id IN NUMBER,
-    p_user_id IN NUMBER,
-    p_role IN VARCHAR2
-) IS
+CREATE OR REPLACE PROCEDURE ShowProjects AS
 BEGIN
+    SELECT * FROM Projects;
+END;
+/
+
+
+
+
+
+
+
+
+
+
+-------------------- PROJECT MEMBERS ------------------------------
+
+
+
+CREATE OR REPLACE PROCEDURE AddProjectMember (
+    in_project_id IN NUMBER,
+    in_user_id IN NUMBER,
+    in_role IN VARCHAR2
+) AS
+BEGIN
+    IF EXISTS (SELECT 1 FROM ProjectMembers WHERE project_id = in_project_id AND user_id = in_user_id) THEN
+        DBMS_OUTPUT.PUT_LINE('Project member already exists');
+        RETURN;
+    END IF;
+
     INSERT INTO ProjectMembers(project_id, user_id, project_role)
-    VALUES (p_project_id, p_user_id, p_role);
+    VALUES (in_project_id, in_user_id, in_role);
 END;
 /
 
--- READ
-CREATE OR REPLACE PROCEDURE get_project_member (
-    p_project_id IN NUMBER,
-    p_user_id IN NUMBER,
-    p_role OUT VARCHAR2
-) IS
+CREATE OR REPLACE PROCEDURE UpdateProjectMember (
+    in_project_id IN NUMBER,
+    in_user_id IN NUMBER,
+    new_role IN VARCHAR2
+) AS
+    v_role ProjectMembers.project_role%TYPE;
 BEGIN
-    SELECT project_role
-    INTO p_role
-    FROM ProjectMembers
-    WHERE project_id = p_project_id AND user_id = p_user_id;
-END;
-/
+    BEGIN
+        SELECT project_role INTO v_role
+        FROM ProjectMembers
+        WHERE project_id = in_project_id AND user_id = in_user_id;
+    EXCEPTION
+        WHEN NO_DATA_FOUND THEN
+            DBMS_OUTPUT.PUT_LINE('No project member with the given ids found');
+            RETURN;
+    END;
 
--- UPDATE
-CREATE OR REPLACE PROCEDURE update_project_member (
-    p_project_id IN NUMBER,
-    p_user_id IN NUMBER,
-    p_role IN VARCHAR2
-) IS
-BEGIN
     UPDATE ProjectMembers
-    SET project_role = p_role
-    WHERE project_id = p_project_id AND user_id = p_user_id;
+    SET project_role = NVL(new_role, v_role)
+    WHERE project_id = in_project_id AND user_id = in_user_id;
 END;
 /
 
--- DELETE
-CREATE OR REPLACE PROCEDURE remove_project_member (
-    p_project_id IN NUMBER,
-    p_user_id IN NUMBER
-) IS
+CREATE OR REPLACE PROCEDURE RemoveProjectMember (
+    in_project_id IN NUMBER,
+    in_user_id IN NUMBER
+) AS
 BEGIN
-    DELETE FROM ProjectMembers
-    WHERE project_id = p_project_id AND user_id = p_user_id;
+    IF EXISTS (SELECT 1 FROM ProjectMembers WHERE project_id = in_project_id AND user_id = in_user_id) THEN
+        DELETE FROM ProjectMembers WHERE project_id = in_project_id AND user_id = in_user_id;
+        DBMS_OUTPUT.PUT_LINE('Project Member Deleted Successfully');
+        RETURN;
+    END IF;
+    DBMS_OUTPUT.PUT_LINE('No project member with the given ids found');
 END;
 /
 
--- CREATE
-CREATE OR REPLACE PROCEDURE create_funding (
-    p_project_id IN NUMBER,
-    p_sponsor IN VARCHAR2,
-    p_amount IN NUMBER
-) IS
+
+CREATE OR REPLACE PROCEDURE ShowProjectMembers AS
 BEGIN
+    SELECT * FROM ProjectMembers;
+END;
+/
+
+CREATE OR REPLACE PROCEDURE GetProjectMember (in_project_id IN NUMBER, in_user_id IN NUMBER) AS
+BEGIN
+    IF EXISTS (SELECT 1 FROM ProjectMembers WHERE project_id = in_project_id AND user_id = in_user_id) THEN
+        SELECT * FROM ProjectMembers WHERE project_id = in_project_id AND user_id = in_user_id;
+        RETURN;
+    END IF;
+    DBMS_OUTPUT.PUT_LINE('No project member with the given ids found');
+END;
+/
+
+
+
+
+
+
+
+
+
+
+
+
+
+-------------------- FUNDINGS ------------------------------
+
+
+
+
+
+
+
+CREATE OR REPLACE PROCEDURE CreateFunding (
+    in_project_id IN NUMBER,
+    in_sponsor IN VARCHAR2,
+    in_amount IN NUMBER
+) AS
+    v_funding_id NUMBER;
+BEGIN
+    SELECT funding_id_seq.NEXTVAL INTO v_funding_id FROM dual;
+
     INSERT INTO Funding(funding_id, project_id, sponsor, amount)
-    VALUES (funding_id_seq.NEXTVAL, p_project_id, p_sponsor, p_amount);
+    VALUES (v_funding_id, in_project_id, in_sponsor, in_amount);
 END;
 /
 
--- READ
-CREATE OR REPLACE PROCEDURE get_funding (
-    p_funding_id IN NUMBER,
-    p_project_id OUT NUMBER,
-    p_sponsor OUT VARCHAR2,
-    p_amount OUT NUMBER
-) IS
+CREATE OR REPLACE PROCEDURE UpdateFunding (
+    in_id IN NUMBER,
+    new_project_id IN NUMBER,
+    new_sponsor IN VARCHAR2,
+    new_amount IN NUMBER
+) AS
+    v_project Funding.project_id%TYPE;
+    v_sponsor Funding.sponsor%TYPE;
+    v_amount Funding.amount%TYPE;
 BEGIN
-    SELECT project_id, sponsor, amount
-    INTO p_project_id, p_sponsor, p_amount
-    FROM Funding
-    WHERE funding_id = p_funding_id;
-END;
-/
+    BEGIN
+        SELECT project_id, sponsor, amount
+        INTO v_project, v_sponsor, v_amount
+        FROM Funding WHERE funding_id = in_id;
+    EXCEPTION
+        WHEN NO_DATA_FOUND THEN
+            DBMS_OUTPUT.PUT_LINE('No funding with the given id found');
+            RETURN;
+    END;
 
--- UPDATE
-CREATE OR REPLACE PROCEDURE update_funding (
-    p_funding_id IN NUMBER,
-    p_project_id IN NUMBER,
-    p_sponsor IN VARCHAR2,
-    p_amount IN NUMBER
-) IS
-BEGIN
     UPDATE Funding
-    SET project_id = p_project_id,
-        sponsor = p_sponsor,
-        amount = p_amount
-    WHERE funding_id = p_funding_id;
+    SET project_id = NVL(new_project_id, v_project),
+        sponsor = NVL(new_sponsor, v_sponsor),
+        amount = NVL(new_amount, v_amount)
+    WHERE funding_id = in_id;
 END;
 /
 
--- DELETE
-CREATE OR REPLACE PROCEDURE delete_funding (
-    p_funding_id IN NUMBER
-) IS
+
+CREATE OR REPLACE PROCEDURE DeleteFunding (in_id IN NUMBER) AS
 BEGIN
-    DELETE FROM Funding WHERE funding_id = p_funding_id;
+    IF EXISTS (SELECT 1 FROM Funding WHERE funding_id = in_id) THEN
+        DELETE FROM Funding WHERE funding_id = in_id;
+        DBMS_OUTPUT.PUT_LINE('Funding Deleted Successfully');
+        RETURN;
+    END IF;
+    DBMS_OUTPUT.PUT_LINE('No funding with the given id found');
 END;
 /
 
--- CREATE
-CREATE OR REPLACE PROCEDURE create_publication (
-    p_title IN VARCHAR2,
-    p_project_id IN NUMBER,
-    p_pub_date IN DATE
-) IS
+CREATE OR REPLACE PROCEDURE ShowFunding AS
 BEGIN
+    SELECT * FROM Funding;
+END;
+/
+
+CREATE OR REPLACE PROCEDURE GetFunding (in_id IN NUMBER) AS
+BEGIN
+    IF EXISTS (SELECT 1 FROM Funding WHERE funding_id = in_id) THEN
+        SELECT * FROM Funding WHERE funding_id = in_id;
+        RETURN;
+    END IF;
+    DBMS_OUTPUT.PUT_LINE('No funding with given id found');
+END;
+/
+
+
+
+
+
+
+
+
+
+
+
+
+
+-------------------- PUBLICATIONS ------------------------------
+
+
+
+CREATE OR REPLACE PROCEDURE CreatePublication (
+    in_title IN VARCHAR2,
+    in_project_id IN NUMBER,
+    in_pub_date IN DATE
+) AS
+    v_pub_id NUMBER;
+BEGIN
+    IF EXISTS (SELECT 1 FROM Publications WHERE title = in_title) THEN
+        DBMS_OUTPUT.PUT_LINE('Publication with same title already exists');
+        RETURN;
+    END IF;
+
+    SELECT pub_id_seq.NEXTVAL INTO v_pub_id FROM dual;
+
     INSERT INTO Publications(pub_id, title, project_id, publication_date)
-    VALUES (pub_id_seq.NEXTVAL, p_title, p_project_id, p_pub_date);
+    VALUES (v_pub_id, in_title, in_project_id, in_pub_date);
 END;
 /
 
--- READ
-CREATE OR REPLACE PROCEDURE get_publication (
-    p_pub_id IN NUMBER,
-    p_title OUT VARCHAR2,
-    p_project_id OUT NUMBER,
-    p_pub_date OUT DATE
-) IS
-BEGIN
-    SELECT title, project_id, publication_date
-    INTO p_title, p_project_id, p_pub_date
-    FROM Publications
-    WHERE pub_id = p_pub_id;
-END;
-/
 
--- UPDATE
-CREATE OR REPLACE PROCEDURE update_publication (
-    p_pub_id IN NUMBER,
-    p_title IN VARCHAR2,
-    p_project_id IN NUMBER,
-    p_pub_date IN DATE
-) IS
+CREATE OR REPLACE PROCEDURE UpdatePublication (
+    in_id IN NUMBER,
+    new_title IN VARCHAR2,
+    new_project_id IN NUMBER,
+    new_pub_date IN DATE
+) AS
+    v_title Publications.title%TYPE;
+    v_project Publications.project_id%TYPE;
+    v_date Publications.publication_date%TYPE;
 BEGIN
+    BEGIN
+        SELECT title, project_id, publication_date
+        INTO v_title, v_project, v_date
+        FROM Publications WHERE pub_id = in_id;
+    EXCEPTION
+        WHEN NO_DATA_FOUND THEN
+            DBMS_OUTPUT.PUT_LINE('No publication with the given id found');
+            RETURN;
+    END;
+
     UPDATE Publications
-    SET title = p_title,
-        project_id = p_project_id,
-        publication_date = p_pub_date
-    WHERE pub_id = p_pub_id;
+    SET title = NVL(new_title, v_title),
+        project_id = NVL(new_project_id, v_project),
+        publication_date = NVL(new_pub_date, v_date)
+    WHERE pub_id = in_id;
 END;
 /
 
--- DELETE
-CREATE OR REPLACE PROCEDURE delete_publication (
-    p_pub_id IN NUMBER
-) IS
+
+CREATE OR REPLACE PROCEDURE DeletePublication (in_id IN NUMBER) AS
 BEGIN
-    DELETE FROM Publications WHERE pub_id = p_pub_id;
+    IF EXISTS (SELECT 1 FROM Publications WHERE pub_id = in_id) THEN
+        DELETE FROM Publications WHERE pub_id = in_id;
+        DBMS_OUTPUT.PUT_LINE('Publication Deleted Successfully');
+        RETURN;
+    END IF;
+    DBMS_OUTPUT.PUT_LINE('No publication with the given id found');
 END;
 /
 
--- CREATE
-CREATE OR REPLACE PROCEDURE add_pub_author (
-    p_pub_id IN NUMBER,
-    p_user_id IN NUMBER,
-    p_role IN VARCHAR2
-) IS
+
+CREATE OR REPLACE PROCEDURE ShowPublications AS
 BEGIN
+    SELECT * FROM Publications;
+END;
+/
+
+
+CREATE OR REPLACE PROCEDURE GetPublication (in_id IN NUMBER) AS
+BEGIN
+    IF EXISTS (SELECT 1 FROM Publications WHERE pub_id = in_id) THEN
+        SELECT * FROM Publications WHERE pub_id = in_id;
+        RETURN;
+    END IF;
+    DBMS_OUTPUT.PUT_LINE('No publication found');
+END;
+/
+
+
+
+
+
+
+
+
+
+
+
+
+
+-------------------- Publication_Authors ------------------------------
+
+CREATE OR REPLACE PROCEDURE AddPubAuthor (
+    in_pub_id IN NUMBER,
+    in_user_id IN NUMBER,
+    in_role IN VARCHAR2
+) AS
+BEGIN
+    IF EXISTS (SELECT 1 FROM pub_authors WHERE pub_id = in_pub_id AND user_id = in_user_id) THEN
+        DBMS_OUTPUT.PUT_LINE('Publication author already exists');
+        RETURN;
+    END IF;
+
     INSERT INTO pub_authors(pub_id, user_id, pub_role)
-    VALUES (p_pub_id, p_user_id, p_role);
+    VALUES (in_pub_id, in_user_id, in_role);
 END;
 /
 
--- READ
-CREATE OR REPLACE PROCEDURE get_pub_author (
-    p_pub_id IN NUMBER,
-    p_user_id IN NUMBER,
-    p_role OUT VARCHAR2
-) IS
+CREATE OR REPLACE PROCEDURE UpdatePubAuthor (
+    in_pub_id IN NUMBER,
+    in_user_id IN NUMBER,
+    new_role IN VARCHAR2
+) AS
+    v_role pub_authors.pub_role%TYPE;
 BEGIN
-    SELECT pub_role
-    INTO p_role
-    FROM pub_authors
-    WHERE pub_id = p_pub_id AND user_id = p_user_id;
-END;
-/
+    BEGIN
+        SELECT pub_role INTO v_role
+        FROM pub_authors
+        WHERE pub_id = in_pub_id AND user_id = in_user_id;
+    EXCEPTION
+        WHEN NO_DATA_FOUND THEN
+            DBMS_OUTPUT.PUT_LINE('No publication author with the given ids found');
+            RETURN;
+    END;
 
--- UPDATE
-CREATE OR REPLACE PROCEDURE update_pub_author (
-    p_pub_id IN NUMBER,
-    p_user_id IN NUMBER,
-    p_role IN VARCHAR2
-) IS
-BEGIN
     UPDATE pub_authors
-    SET pub_role = p_role
-    WHERE pub_id = p_pub_id AND user_id = p_user_id;
+    SET pub_role = NVL(new_role, v_role)
+    WHERE pub_id = in_pub_id AND user_id = in_user_id;
 END;
 /
 
--- DELETE
-CREATE OR REPLACE PROCEDURE remove_pub_author (
-    p_pub_id IN NUMBER,
-    p_user_id IN NUMBER
-) IS
+CREATE OR REPLACE PROCEDURE DeletePubAuthor (in_pub_id IN NUMBER, in_user_id IN NUMBER) AS
 BEGIN
-    DELETE FROM pub_authors
-    WHERE pub_id = p_pub_id AND user_id = p_user_id;
+    IF EXISTS (SELECT 1 FROM pub_authors WHERE pub_id = in_pub_id AND user_id = in_user_id) THEN
+        DELETE FROM pub_authors WHERE pub_id = in_pub_id AND user_id = in_user_id;
+        DBMS_OUTPUT.PUT_LINE('Publication author Deleted Successfully');
+        RETURN;
+    END IF;
+    DBMS_OUTPUT.PUT_LINE('No publication author with the given ids found');
+END;
+/
+
+CREATE OR REPLACE PROCEDURE ShowPubAuthors AS
+BEGIN
+    SELECT * FROM pub_authors;
+END;
+/
+
+CREATE OR REPLACE PROCEDURE GetPubAuthor (in_pub_id IN NUMBER, in_user_id IN NUMBER) AS
+BEGIN
+    IF EXISTS (SELECT 1 FROM pub_authors WHERE pub_id = in_pub_id AND user_id = in_user_id) THEN
+        SELECT * FROM pub_authors WHERE pub_id = in_pub_id AND user_id = in_user_id;
+        RETURN;
+    END IF;
+    DBMS_OUTPUT.PUT_LINE('No publication author found');
 END;
 /
