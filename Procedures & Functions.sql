@@ -1,6 +1,4 @@
-
-
-
+--======================================== CRUD ==============================================
 
 
 
@@ -60,10 +58,14 @@ BEGIN
 END;
 /
 
-CREATE OR REPLACE PROCEDURE ShowUsers AS 
+CREATE OR REPLACE PROCEDURE ShowUsers (in_role IN VARCHAR2) AS 
 
 BEGIN 
+    IF in_role = 'ADMIN' THEN
     SELECT * FROM Users1;
+    RETURN;
+    END IF;
+    DBMS_OUTPUT.PUT_LINE('Only Admin can perform this action');
 END;
 /
 
@@ -93,10 +95,16 @@ END;
 
 
 
-CREATE OR REPLACE PROCEDURE CreateLab (p_labname IN VARCHAR2, p_capacity IN NUMBER, p_availability IN VARCHAR2) AS
+CREATE OR REPLACE PROCEDURE CreateLab (p_labname IN VARCHAR2, p_capacity IN NUMBER, p_availability IN VARCHAR2, in_role IN VARCHAR2) AS
 BEGIN
-    INSERT INTO Labs(lab_id, labname, lab_capacity, availability_status)
-    VALUES (lab_id_seq.NEXTVAL, p_labname, p_capacity, p_availability);
+
+    IF in_role = 'ADMIN' THEN
+        INSERT INTO Labs(lab_id, labname, lab_capacity, availability_status)
+        VALUES (lab_id_seq.NEXTVAL, p_labname, p_capacity, p_availability);
+    RETURN;
+    END IF;
+    DBMS_OUTPUT.PUT_LINE('Only Admin can perform this action');
+
 END;
 /
 
@@ -110,12 +118,18 @@ BEGIN
 END;
 /
 
-CREATE OR REPLACE PROCEDURE UpdateLab ( p_lab_id IN NUMBER, p_labname IN VARCHAR2, p_capacity IN NUMBER, p_availability IN VARCHAR2) AS
+CREATE OR REPLACE PROCEDURE UpdateLab ( p_lab_id IN NUMBER, p_labname IN VARCHAR2, p_capacity IN NUMBER, p_availability IN VARCHAR2, in_role) AS
 
 v_labname Labs.labname%TYPE;
 v_avl Labs.availability_status%TYPE;
 v_cap Labs.lab_capacity%TYPE;
 BEGIN
+    
+    IF in_role != 'ADMIN' THEN
+    DBMS_OUTPUT.PUT_LINE('Only Admin can perform this action');
+    RETURN;
+    END IF;
+    
     BEGIN 
         SELECT labname,availabilty_status, lab_capacity INTO v_labname, v_avl, v_cap FROM Labs WHERE lab_id = p_lab_id;
         EXCEPTION WHEN NO_DATA_FOUND THEN
@@ -127,8 +141,14 @@ BEGIN
 END;
 /
 
-CREATE OR REPLACE PROCEDURE DeleteLab ( p_lab_id IN NUMBER ) IS
+CREATE OR REPLACE PROCEDURE DeleteLab ( p_lab_id IN NUMBER , in_role IN VARCHAR2) IS
 BEGIN
+
+IF in_role != 'ADMIN' THEN
+    DBMS_OUTPUT.PUT_LINE('Only Admin can perform this action');
+    RETURN;
+END IF;
+
 IF EXISTS (SELECT 1 FROM Labs where lab_id = p_lab_id) THEN
     DELETE FROM Labs WHERE lab_id = p_lab_id;
     RETURN;
@@ -157,10 +177,17 @@ CREATE OR REPLACE PROCEDURE CreateProject (
     in_end IN DATE,
     in_lab_assigned IN NUMBER,
     in_admin IN NUMBER,
-    in_status IN VARCHAR2
+    in_status IN VARCHAR2,
+    in_role IN VARCHAR2
 ) AS
     v_project_id NUMBER;
 BEGIN
+
+IF in_role NOT IN ('ADMIN','FACULTY') THEN
+    DBMS_OUTPUT.PUT_LINE('Only Admin and Faculty can perform this action');
+    RETURN;
+END IF;
+
     IF EXISTS (SELECT 1 FROM Projects WHERE title = in_title) THEN
         DBMS_OUTPUT.PUT_LINE('Project with same title already exists');
         RETURN;
@@ -207,6 +234,12 @@ CREATE OR REPLACE PROCEDURE UpdateProject (
     v_admin   Projects.project_admin%TYPE;
     v_status  Projects.status%TYPE;
 BEGIN
+
+IF in_role NOT IN ('ADMIN','FACULTY') THEN
+    DBMS_OUTPUT.PUT_LINE('Only Admin and Faculty can perform this action');
+    RETURN;
+END IF;
+
     BEGIN
         SELECT title, project_desc, start_date, end_date, lab_assigned, project_admin, status
         INTO v_title, v_desc, v_start, v_end, v_lab, v_admin, v_status
@@ -234,6 +267,12 @@ END;
 
 CREATE OR REPLACE PROCEDURE DeleteProject (in_id IN NUMBER) AS
 BEGIN
+
+    IF in_role NOT IN ('ADMIN','FACULTY') THEN
+    DBMS_OUTPUT.PUT_LINE('Only Admin and Faculty can perform this action');
+    RETURN;
+    END IF;
+
     IF EXISTS (SELECT 1 FROM Projects WHERE project_id = in_id) THEN
         DELETE FROM Projects WHERE project_id = in_id;
         DBMS_OUTPUT.PUT_LINE('Project Deleted Successfully');
@@ -265,9 +304,15 @@ END;
 CREATE OR REPLACE PROCEDURE AddProjectMember (
     in_project_id IN NUMBER,
     in_user_id IN NUMBER,
-    in_role IN VARCHAR2
+    in_role IN VARCHAR2,
+    action_role IN VARCHAR2
 ) AS
 BEGIN
+IF action_role NOT IN ('ADMIN','FACULTY') THEN
+    DBMS_OUTPUT.PUT_LINE('Only Admin and Faculty can perform this action');
+    RETURN;
+END IF;
+
     IF EXISTS (SELECT 1 FROM ProjectMembers WHERE project_id = in_project_id AND user_id = in_user_id) THEN
         DBMS_OUTPUT.PUT_LINE('Project member already exists');
         RETURN;
@@ -281,10 +326,17 @@ END;
 CREATE OR REPLACE PROCEDURE UpdateProjectMember (
     in_project_id IN NUMBER,
     in_user_id IN NUMBER,
-    new_role IN VARCHAR2
+    new_role IN VARCHAR2,
+    action_role IN VARCHAR2
 ) AS
     v_role ProjectMembers.project_role%TYPE;
 BEGIN
+
+    IF action_role NOT IN ('ADMIN','FACULTY') THEN
+    DBMS_OUTPUT.PUT_LINE('Only Admin and Faculty can perform this action');
+    RETURN;
+    END IF;
+
     BEGIN
         SELECT project_role INTO v_role
         FROM ProjectMembers
@@ -303,9 +355,15 @@ END;
 
 CREATE OR REPLACE PROCEDURE RemoveProjectMember (
     in_project_id IN NUMBER,
-    in_user_id IN NUMBER
+    in_user_id IN NUMBER,
+    action_role IN VARCHAR2
 ) AS
 BEGIN
+    IF in_role NOT IN ('ADMIN','FACULTY') THEN
+    DBMS_OUTPUT.PUT_LINE('Only Admin and Faculty can perform this action');
+    RETURN;
+    END IF;
+    
     IF EXISTS (SELECT 1 FROM ProjectMembers WHERE project_id = in_project_id AND user_id = in_user_id) THEN
         DELETE FROM ProjectMembers WHERE project_id = in_project_id AND user_id = in_user_id;
         DBMS_OUTPUT.PUT_LINE('Project Member Deleted Successfully');
@@ -355,10 +413,16 @@ END;
 CREATE OR REPLACE PROCEDURE CreateFunding (
     in_project_id IN NUMBER,
     in_sponsor IN VARCHAR2,
-    in_amount IN NUMBER
+    in_amount IN NUMBER,
+    action_role IN VARCHAR2 
 ) AS
     v_funding_id NUMBER;
 BEGIN
+    IF action_role NOT IN ('ADMIN') THEN
+    DBMS_OUTPUT.PUT_LINE('Only Admin can perform this action');
+    RETURN;
+    END IF;
+
     SELECT funding_id_seq.NEXTVAL INTO v_funding_id FROM dual;
 
     INSERT INTO Funding(funding_id, project_id, sponsor, amount)
@@ -370,12 +434,18 @@ CREATE OR REPLACE PROCEDURE UpdateFunding (
     in_id IN NUMBER,
     new_project_id IN NUMBER,
     new_sponsor IN VARCHAR2,
-    new_amount IN NUMBER
+    new_amount IN NUMBER,
+    action_role IN VARCHAR2
 ) AS
     v_project Funding.project_id%TYPE;
     v_sponsor Funding.sponsor%TYPE;
     v_amount Funding.amount%TYPE;
 BEGIN
+    IF action_role NOT IN ('ADMIN') THEN
+    DBMS_OUTPUT.PUT_LINE('Only Admin can perform this action');
+    RETURN;
+    END IF;
+
     BEGIN
         SELECT project_id, sponsor, amount
         INTO v_project, v_sponsor, v_amount
@@ -395,8 +465,13 @@ END;
 /
 
 
-CREATE OR REPLACE PROCEDURE DeleteFunding (in_id IN NUMBER) AS
+CREATE OR REPLACE PROCEDURE DeleteFunding (in_id IN NUMBER, action_role IN VARCHAR2) AS
 BEGIN
+    IF action_role NOT IN ('ADMIN') THEN
+        DBMS_OUTPUT.PUT_LINE('Only Admin can perform this action');
+        RETURN;
+    END IF;
+
     IF EXISTS (SELECT 1 FROM Funding WHERE funding_id = in_id) THEN
         DELETE FROM Funding WHERE funding_id = in_id;
         DBMS_OUTPUT.PUT_LINE('Funding Deleted Successfully');
@@ -441,19 +516,28 @@ END;
 CREATE OR REPLACE PROCEDURE CreatePublication (
     in_title IN VARCHAR2,
     in_project_id IN NUMBER,
-    in_pub_date IN DATE
+    in_pub_date IN DATE,
+    action_role IN VARCHAR2
 ) AS
     v_pub_id NUMBER;
+    v_date DATE;
 BEGIN
+    IF action_role NOT IN ('ADMIN','FACULTY') THEN
+        DBMS_OUTPUT.PUT_LINE('Only Admin and Faculty can perform this action');
+        RETURN;
+    END IF;
     IF EXISTS (SELECT 1 FROM Publications WHERE title = in_title) THEN
         DBMS_OUTPUT.PUT_LINE('Publication with same title already exists');
         RETURN;
     END IF;
 
+    v_date = NVL(in_pub_date, SYSDATE);
+    END IF;
+
     SELECT pub_id_seq.NEXTVAL INTO v_pub_id FROM dual;
 
     INSERT INTO Publications(pub_id, title, project_id, publication_date)
-    VALUES (v_pub_id, in_title, in_project_id, in_pub_date);
+    VALUES (v_pub_id, in_title, in_project_id, v_date);
 END;
 /
 
@@ -462,12 +546,19 @@ CREATE OR REPLACE PROCEDURE UpdatePublication (
     in_id IN NUMBER,
     new_title IN VARCHAR2,
     new_project_id IN NUMBER,
-    new_pub_date IN DATE
+    new_pub_date IN DATE,
+    action_role IN VARCHAR2
 ) AS
     v_title Publications.title%TYPE;
     v_project Publications.project_id%TYPE;
     v_date Publications.publication_date%TYPE;
 BEGIN
+
+    IF action_role NOT IN ('ADMIN','FACULTY') THEN
+        DBMS_OUTPUT.PUT_LINE('Only Admin and Faculty can perform this action');
+        RETURN;
+    END IF;
+
     BEGIN
         SELECT title, project_id, publication_date
         INTO v_title, v_project, v_date
@@ -478,6 +569,11 @@ BEGIN
             RETURN;
     END;
 
+    IF v_date <= SYSDATE THEN
+        DBMS_OUTPUT.PUT_LINE('Cannot change publication details after or on publication date');
+        RETURN;
+    END IF;
+
     UPDATE Publications
     SET title = NVL(new_title, v_title),
         project_id = NVL(new_project_id, v_project),
@@ -487,16 +583,37 @@ END;
 /
 
 
-CREATE OR REPLACE PROCEDURE DeletePublication (in_id IN NUMBER) AS
+CREATE OR REPLACE PROCEDURE DeletePublication (
+    in_id IN NUMBER,
+    action_role IN VARCHAR2
+) AS
+    v_pub_date DATE;
 BEGIN
-    IF EXISTS (SELECT 1 FROM Publications WHERE pub_id = in_id) THEN
-        DELETE FROM Publications WHERE pub_id = in_id;
-        DBMS_OUTPUT.PUT_LINE('Publication Deleted Successfully');
+    IF action_role NOT IN ('ADMIN','FACULTY') THEN
+        DBMS_OUTPUT.PUT_LINE('Only Admin and Faculty can perform this action');
         RETURN;
     END IF;
-    DBMS_OUTPUT.PUT_LINE('No publication with the given id found');
+    BEGIN
+        SELECT publication_date
+        INTO v_pub_date
+        FROM Publications
+        WHERE pub_id = in_id;
+    EXCEPTION
+        WHEN NO_DATA_FOUND THEN
+            DBMS_OUTPUT.PUT_LINE('No publication with the given id found');
+            RETURN;
+    END;
+
+    IF v_pub_date <= SYSDATE THEN
+        DBMS_OUTPUT.PUT_LINE('Cannot delete publication after or on publication date');
+        RETURN;
+    END IF;
+
+    DELETE FROM Publications WHERE pub_id = in_id;
+    DBMS_OUTPUT.PUT_LINE('Publication Deleted Successfully');
 END;
 /
+
 
 
 CREATE OR REPLACE PROCEDURE ShowPublications AS
@@ -533,9 +650,31 @@ END;
 CREATE OR REPLACE PROCEDURE AddPubAuthor (
     in_pub_id IN NUMBER,
     in_user_id IN NUMBER,
-    in_role IN VARCHAR2
+    in_role IN VARCHAR2,
+    action_role IN VARCHAR2
 ) AS
 BEGIN
+
+    IF action_role NOT IN ('ADMIN','FACULTY') THEN
+        DBMS_OUTPUT.PUT_LINE('Only Admin and Faculty can perform this action');
+        RETURN;
+    END IF;
+    
+    BEGIN
+        SELECT publication_date INTO v_pub_date
+        FROM Publications
+        WHERE pub_id = in_pub_id;
+    EXCEPTION
+        WHEN NO_DATA_FOUND THEN
+            DBMS_OUTPUT.PUT_LINE('Publication not found');
+            RETURN;
+    END;
+
+    IF v_pub_date <= SYSDATE THEN
+        DBMS_OUTPUT.PUT_LINE('Cannot add authors after publication date');
+        RETURN;
+    END IF;
+
     IF EXISTS (SELECT 1 FROM pub_authors WHERE pub_id = in_pub_id AND user_id = in_user_id) THEN
         DBMS_OUTPUT.PUT_LINE('Publication author already exists');
         RETURN;
@@ -549,10 +688,27 @@ END;
 CREATE OR REPLACE PROCEDURE UpdatePubAuthor (
     in_pub_id IN NUMBER,
     in_user_id IN NUMBER,
-    new_role IN VARCHAR2
+    new_role IN VARCHAR2,
+    action_role IN VARCHAR2
 ) AS
     v_role pub_authors.pub_role%TYPE;
 BEGIN
+
+    IF action_role NOT IN ('ADMIN','FACULTY') THEN
+        DBMS_OUTPUT.PUT_LINE('Only Admin and Faculty can perform this action');
+        RETURN;
+    END IF;
+
+    BEGIN
+        SELECT publication_date INTO v_pub_date
+        FROM Publications
+        WHERE pub_id = in_pub_id;
+    EXCEPTION
+        WHEN NO_DATA_FOUND THEN
+            DBMS_OUTPUT.PUT_LINE('Publication not found');
+        RETURN;
+    END;
+
     BEGIN
         SELECT pub_role INTO v_role
         FROM pub_authors
@@ -563,14 +719,38 @@ BEGIN
             RETURN;
     END;
 
+    IF v_pub_date <= SYSDATE THEN
+        DBMS_OUTPUT.PUT_LINE('Cannot update author details after publication date');
+        RETURN;
+    END IF;
+
     UPDATE pub_authors
     SET pub_role = NVL(new_role, v_role)
     WHERE pub_id = in_pub_id AND user_id = in_user_id;
 END;
 /
 
-CREATE OR REPLACE PROCEDURE DeletePubAuthor (in_pub_id IN NUMBER, in_user_id IN NUMBER) AS
+CREATE OR REPLACE PROCEDURE DeletePubAuthor (in_pub_id IN NUMBER, in_user_id IN NUMBER, action_role IN VARCHAR2) AS
 BEGIN
+    IF action_role NOT IN ('ADMIN','FACULTY') THEN
+        DBMS_OUTPUT.PUT_LINE('Only Admin and Faculty can perform this action');
+        RETURN;
+    END IF;
+    BEGIN
+        SELECT publication_date INTO v_pub_date
+        FROM Publications
+        WHERE pub_id = in_pub_id;
+    EXCEPTION
+        WHEN NO_DATA_FOUND THEN
+            DBMS_OUTPUT.PUT_LINE('Publication not found');
+            RETURN;
+    END;
+
+    IF v_pub_date <= SYSDATE THEN
+        DBMS_OUTPUT.PUT_LINE('Cannot delete authors after or on publication date');
+        RETURN;
+    END IF;
+
     IF EXISTS (SELECT 1 FROM pub_authors WHERE pub_id = in_pub_id AND user_id = in_user_id) THEN
         DELETE FROM pub_authors WHERE pub_id = in_pub_id AND user_id = in_user_id;
         DBMS_OUTPUT.PUT_LINE('Publication author Deleted Successfully');
