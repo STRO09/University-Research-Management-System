@@ -4,8 +4,16 @@ CREATE  SEQUENCE project_id_seq START WITH 1 INCREMENT BY 1 NOCACHE NOCYCLE;
 CREATE  SEQUENCE funding_id_seq START WITH 1 INCREMENT BY 1 NOCACHE NOCYCLE;
 CREATE  SEQUENCE pub_id_seq START WITH 1 INCREMENT BY 1 NOCACHE NOCYCLE;
 
-CREATE  TABLE Users1(user_id NUMBER primary key, full_name varchar2(150) NOT NULL, email varchar2(250) UNIQUE NOT NULL, user_role varchar2(7) NOT NULL CHECK(user_role IN ('ADMIN','STUDENT','FACULTY') ), pass RAW(64) NOT NULL, pass_salt RAW(32) NOT NULL , created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);
-CREATE  TABLE Labs(lab_id NUMBER primary key, labname varchar2(200) NOT NULL, lab_capacity NUMBER NOT NULL , availability_status varchar2(3) NOT NULL CHECK(availability_status IN ('YES','NO')) );
+DROP TABLE pub_authors;
+DROP TABLE Publications;
+DROP TABLE Funding;
+DROP TABLE ProjectMembers;
+DROP TABLE Projects;
+DROP TABLE Labs;
+DROP TABLE Users1;
+
+CREATE  TABLE Users1(user_id NUMBER primary key, full_name varchar2(150) NOT NULL, email varchar2(250) UNIQUE NOT NULL, user_role varchar2(7) NOT NULL CHECK(user_role IN ('ADMIN','STUDENT','FACULTY') ), pass VARCHAR(300) NOT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);
+CREATE  TABLE Labs(lab_id NUMBER primary key, lab_name varchar2(200) NOT NULL, lab_capacity NUMBER NOT NULL , availability_status varchar2(3) NOT NULL CHECK(availability_status IN ('YES','NO')) );
 CREATE  TABLE Projects(project_id NUMBER primary key, title varchar2(250) UNIQUE NOT NULL , project_desc CLOB NOT NULL, start_date DATE DEFAULT CURRENT_DATE, end_date DATE, lab_assigned NUMBER NOT NULL, project_admin NUMBER NOT NULL,  status VARCHAR2(20) CHECK(status IN ('PLANNED','IN_PROGRESS','ON_HOLD','COMPLETED','CANCELLED') ), CONSTRAINT lab_in_proj_fk FOREIGN KEY (lab_assigned) REFERENCES Labs(lab_id), CONSTRAINT user_in_proj_fk FOREIGN KEY (project_admin) REFERENCES Users1(user_id));
 CREATE  TABLE ProjectMembers(project_id NUMBER NOT NULL, user_id NUMBER NOT NULL, project_role varchar2(50) NOT NULL CHECK(project_role IN ('Student Leader', 'Assistant Faculty', 'Student Co-Leader', 'Reviewer') ), PRIMARY KEY(project_id,user_id), CONSTRAINT proj_member_fk FOREIGN KEY(project_id) REFERENCES Projects(project_id) ON DELETE CASCADE,  CONSTRAINT user_in_projm_fk FOREIGN KEY(user_id) REFERENCES Users1(user_id));
 CREATE  TABLE Funding(funding_id NUMBER primary key, project_id NUMBER NOT NULL, sponsor varchar2(300), amount NUMBER(10,0), CONSTRAINT project_in_fund_fk FOREIGN KEY(project_id) REFERENCES Projects(project_id));
